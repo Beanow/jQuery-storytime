@@ -37,6 +37,12 @@
     //Bind events.
     $(document)
       
+      //To chapter
+      .on('click', '.st-to-chapter', function(e){
+        e.preventDefault();
+        toChapter($(this).attr('data-chapter'));
+      })
+      
       //Prev step
       .on('click', '.st-prev-step', function(e){
         e.preventDefault();
@@ -106,7 +112,7 @@
       //Fade effect.
       case 'fade': switch(action){
         case 'in': chapterTransitioning ? $el.show() : $el.fadeIn(Story.options.effectSpeed); break;
-        case 'out': if(!chapterTransitioning) $el.fadeOut(Story.options.effectSpeed); break;
+        case 'out': chapterTransitioning ? $el.delay(Story.options.effectSpeed).fadeOut(1) : $el.fadeOut(Story.options.effectSpeed); break;
       } break;
       
       default: debug('Unknown effect applied:', Story.options.effect); break;
@@ -141,7 +147,8 @@
     
   }
   
-  function findPrevStep(){
+  function findPrevStep()
+  {
     
     //Find the previous step in this chapter.
     var prev = {
@@ -184,50 +191,39 @@
       return;
     }
     
-    var chapterTransitioning = Story.chapter != Story.nextStep.chapter;
-    
-    //If we're switching chapters.
-    if(chapterTransitioning){
-      effect($chapter(Story), 'out');
-      effect($chapter(Story.nextStep), 'in');
-    }
-    
-    //Switch steps with extra parameter.
-    effect($step(Story), 'out', chapterTransitioning);
-    effect($step(Story.nextStep), 'in', chapterTransitioning);
-    
-    //Update story data.
-    $.extend(Story, Story.nextStep);
-    Story.prevStep = findPrevStep();
-    Story.nextStep = findNextStep();
-    
-    //Add class if there's no next or prev step.
-    $('body').toggleClass('st-no-next', !Story.nextStep);
-    $('body').toggleClass('st-no-prev', !Story.prevStep);
+    transition(Story.nextStep);
     
   }
   
-  function prevStep(){
+  function prevStep()
+  {
     
     if(!Story.prevStep){
       debug('No prev step for:', 'Chapter '+Story.chapter, 'Step '+Story.step);
       return;
     }
     
-    var chapterTransitioning = Story.chapter != Story.prevStep.chapter;
+    transition(Story.prevStep);
+    
+  }
+  
+  function transition(to)
+  {
+    
+    var chapterTransitioning = Story.chapter != to.chapter;
     
     //If we're switching chapters.
     if(chapterTransitioning){
       effect($chapter(Story), 'out');
-      effect($chapter(Story.prevStep), 'in');
+      effect($chapter(to), 'in');
     }
     
     //Switch steps with extra parameter.
     effect($step(Story), 'out', chapterTransitioning);
-    effect($step(Story.prevStep), 'in', chapterTransitioning);
+    effect($step(to), 'in', chapterTransitioning);
     
     //Update story data.
-    $.extend(Story, Story.prevStep);
+    $.extend(Story, to);
     Story.prevStep = findPrevStep();
     Story.nextStep = findNextStep();
     
@@ -247,6 +243,30 @@
     
   }
   
+  function toChapter(chapter)
+  {
+    
+    try{
+      chapter = parseInt(chapter, 10);
+    }catch(e){
+      return debug('Given chapter value for toChapter() is not an integer.');
+    }
+    
+    var target = {
+      chapter: chapter,
+      step: 1
+    };
+    
+    if($chapter(target).size() == 0)
+      return debug('Chapter '+chapter+' does not exist. It needs id="chapter-'+chapter+'".');
+    
+    if($step(target).size() == 0)
+      return debug('Chapter '+chapter+' does not have a step 1.');
+    
+    transition(target);
+    
+  }
+  
   //The main command interface.
   $.storytime = function()
   {
@@ -259,8 +279,14 @@
     else switch(arguments[0])
     {
       
+      //Command toChapter
+      case 'toChapter': toChapter(arguments[1]); break;
+      
       //Command nextStep
       case 'nextStep': nextStep(); break;
+      
+      //Command prevStep
+      case 'prevStep': prevStep(); break;
       
       //Command setOptions
       case 'setOptions': $.extend(Story.options, arguments[1]); break;
