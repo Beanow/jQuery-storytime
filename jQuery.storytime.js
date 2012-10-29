@@ -37,6 +37,12 @@
     //Bind events.
     $(document)
       
+      //Prev step
+      .on('click', '.st-prev-step', function(e){
+        e.preventDefault();
+        prevStep();
+      })
+      
       //Next step
       .on('click', '.st-next-step', function(e){
         e.preventDefault();
@@ -135,6 +141,41 @@
     
   }
   
+  function findPrevStep(){
+    
+    //Find the previous step in this chapter.
+    var prev = {
+      chapter: Story.chapter,
+      step: Story.step-1
+    };
+    
+    //If it's there, return.
+    if($step(prev).size() == 1)
+      return prev;
+    
+    //If it's not, go to the previous chapter.
+    prev.chapter--;
+    
+    //If it's not there, there's no previous step.
+    if($chapter(prev).size() == 0)
+      return false;
+    
+    //Otherwise, find the last step of the chapter.
+    prev.step = 1;
+    $chapter(prev).find('.step').each(function(){
+      
+      //Match the step-# pattern to find out which step this is.
+      //Because we don't assume steps to be placed in order of step in the DOM.
+      var result = /step-([0-9]+)/.exec($(this).attr('class'));
+      var stepNr = parseInt(result[1],10);
+      if(stepNr > prev.step) prev.step = stepNr;
+      
+    });
+    
+    return prev;
+    
+  }
+  
   function nextStep()
   {
     
@@ -157,7 +198,42 @@
     
     //Update story data.
     $.extend(Story, Story.nextStep);
+    Story.prevStep = findPrevStep();
     Story.nextStep = findNextStep();
+    
+    //Add class if there's no next or prev step.
+    $('body').toggleClass('st-no-next', !Story.nextStep);
+    $('body').toggleClass('st-no-prev', !Story.prevStep);
+    
+  }
+  
+  function prevStep(){
+    
+    if(!Story.prevStep){
+      debug('No prev step for:', 'Chapter '+Story.chapter, 'Step '+Story.step);
+      return;
+    }
+    
+    var chapterTransitioning = Story.chapter != Story.prevStep.chapter;
+    
+    //If we're switching chapters.
+    if(chapterTransitioning){
+      effect($chapter(Story), 'out');
+      effect($chapter(Story.prevStep), 'in');
+    }
+    
+    //Switch steps with extra parameter.
+    effect($step(Story), 'out', chapterTransitioning);
+    effect($step(Story.prevStep), 'in', chapterTransitioning);
+    
+    //Update story data.
+    $.extend(Story, Story.prevStep);
+    Story.prevStep = findPrevStep();
+    Story.nextStep = findNextStep();
+    
+    //Add class if there's no next or prev step.
+    $('body').toggleClass('st-no-next', !Story.nextStep);
+    $('body').toggleClass('st-no-prev', !Story.prevStep);
     
   }
   
