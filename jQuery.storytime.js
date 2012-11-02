@@ -10,15 +10,60 @@
 
 (function($){
   
+  
+  /* ---------- Private attributes ---------- */
+  
+  var Resource = {
+    image: {},
+    audio: {},
+    video: {},
+    totalCount: 0,
+    finishedLoading: 0
+  };
+  
   var Story = {
     chapter: 0,
     step: 0,
     stage: 0,
     options: {},
+    container: null,
     initialized: false,
     nextStep: false,
     prevStep: false,
     latestMousehide: null
+  };
+  
+  
+  /* ---------- Initialization ---------- */
+  
+  //The main command interface.
+  $.storytime = function()
+  {
+    
+    //When this is our first call, we're setting up our options.
+    if(!Story.initialized)
+      initialize(arguments[0]);
+    
+    //Otherwise, this is a command. Switch based on that.
+    else switch(arguments[0])
+    {
+      
+      //Command toChapter
+      case 'toChapter': toChapter(arguments[1]); break;
+      
+      //Command nextStep
+      case 'nextStep': nextStep(); break;
+      
+      //Command prevStep
+      case 'prevStep': prevStep(); break;
+      
+      //Command setOptions
+      case 'setOptions': $.extend(Story.options, arguments[1]); break;
+      
+      default: debug('Unknown storytime command:', arguments[0]); break;
+      
+    }
+    
   };
   
   //Initializes the story with given options.
@@ -34,8 +79,15 @@
       
     },options);
     
+    //Set the container.
+    //TODO: https://github.com/Beanow/jQuery-storytime/issues/9
+    Story.container = $('body')[0];
+    
+    //Preload things.
+    preloadResources(Story.options.resources);
+    
     //Bind events.
-    $(document)
+    $(Story.container)
       
       //To chapter
       .on('click', '.st-to-chapter', function(e){
@@ -64,21 +116,25 @@
       //Mouse moving
       .on('mousemove', function(e){
         
-        $('body').css('cursor', 'auto');
+        $(Story.container).css('cursor', 'auto');
         
         if(Story.latestMouseHide)
           clearTimeout(Story.latestMouseHide);
         
         Story.latestMouseHide = setTimeout(function(){
-          $('body').css('cursor', 'none');
+          $(Story.container).css('cursor', 'none');
         }, 1500);
         
       })
       
     ;
     
+  }
+  
+  function afterPreloading(){
+    
     //Start the mouse hiding call right away.
-    $(document).trigger('mousemove');
+    $(Story.container).trigger('mousemove');
     
     //Mark the story as initialized.
     Story.initialized = true;
@@ -95,13 +151,136 @@
     
   }
   
-  function $chapter(options){
-    return $('#chapter-'+options.chapter);
+  
+  /* ---------- Resource handling ---------- */
+  
+  function preloadResources(resources){
+    
+    //When nothing is supplied, no loading is needed.
+    if(!resources) return;
+    
+    //Let the world know we are loading things.
+    $(Story.container).addClass('st-loading');
+    
+    //Images.
+    if(resources.image)
+      for(var key in resources.image)
+        preloadImageResource(key, resources.image[key]);
+    
+    //Audio.
+    if(resources.audio)
+      for(var key in resources.audio)
+        preloadAudioResource(key, resources.audio[key]);
+    
+    //Video.
+    if(resources.video)
+      for(var key in resources.video)
+        preloadVideoResource(key, resources.video[key]);
+    
   }
   
-  function $step(options){
-    return $('#chapter-'+options.chapter+' .step-'+options.step);
+  function preloadProgressTick(){
+    Resource.finishedLoading++;
+    $(Story.container).find('.st-loading-progress').stop().animate({width:Math.round(Resource.finishedLoading / Resource.totalCount * 100)+'%'}, 150);
+    if(Resource.finishedLoading == Resource.totalCount){
+      setTimeout(function(arguments){
+        $(Story.container).removeClass('st-loading');
+        afterPreloading();
+      }, 150);
+    }
   }
+  
+  function preloadImageResource(key, url)
+  {
+    
+    //Store information about this resource.
+    var meta = Resource.image[key] = {
+      url: url,
+      ready: false
+    };
+    
+    //Count this resource.
+    Resource.totalCount++;
+    
+    //Create preloader.
+    window.Image ? meta.preloader = new Image()
+                 : meta.preloader = document.createElement('image');
+    meta.preloader.onload = function(){
+      meta.ready = true;
+      preloadProgressTick();
+      delete meta.preloader;
+      debug('Finished preloading image.', meta);
+    };
+    
+    //Start loading.
+    meta.preloader.src = url;
+    
+    debug('Preloading image.', meta);
+    
+  }
+  
+  function preloadAudioResource(key, url)
+  {
+    
+    //Store information about this resource.
+    var meta = Resource.audio[key] = {
+      url: url,
+      ready: false
+    };
+    
+    //Count this resource.
+    Resource.totalCount++;
+    
+    //Create controller.
+    window.Audio ? meta.controller = new Audio()
+                 : meta.controller = document.createElement('audio');
+    meta.controller.addEventListener('canplaythrough', function (){
+      meta.ready = true;
+      preloadProgressTick();
+      debug('Finished preloading audio.', meta);
+    }, true);
+    meta.controller.preload = 'auto';
+    
+    //Start loading.
+    meta.controller.src = url;
+    meta.controller.load();
+    
+    debug('Preloading audio.', meta);
+    
+  }
+  
+  function preloadVideoResource(key, url)
+  {
+    
+    //Store information about this resource.
+    var meta = Resource.video[key] = {
+      url: url,
+      ready: false
+    };
+    
+    //Count this resource.
+    Resource.totalCount++;
+    
+    //Create controller.
+    window.Video ? meta.controller = new Video()
+                 : meta.controller = document.createElement('video');
+    meta.controller.addEventListener('canplaythrough', function (){
+      meta.ready = true;
+      preloadProgressTick();
+      debug('Finished preloading video.', meta);
+    }, true);
+    meta.controller.preload = 'auto';
+    
+    //Start loading.
+    meta.controller.src = url;
+    meta.controller.load();
+    
+    debug('Preloading video.', meta);
+    
+  }
+  
+  
+  /* ---------- Effects ---------- */
   
   function effect($el, action, chapterTransitioning)
   {
@@ -120,6 +299,9 @@
     }
     
   }
+  
+  
+  /* ---------- Navigation ---------- */
   
   function findNextStep()
   {
@@ -228,18 +410,8 @@
     Story.nextStep = findNextStep();
     
     //Add class if there's no next or prev step.
-    $('body').toggleClass('st-no-next', !Story.nextStep);
-    $('body').toggleClass('st-no-prev', !Story.prevStep);
-    
-  }
-  
-  function nextStage()
-  {
-    
-    //TODO https://github.com/Beanow/jQuery-storytime/issues/1
-    $('body').removeClass('stage-'+Story.stage);
-    Story.stage++;
-    $('body').addClass('stage-'+Story.stage);
+    $(Story.container).toggleClass('st-no-next', !Story.nextStep);
+    $(Story.container).toggleClass('st-no-prev', !Story.prevStep);
     
   }
   
@@ -267,35 +439,29 @@
     
   }
   
-  //The main command interface.
-  $.storytime = function()
+  
+  /* ---------- Staging ---------- */
+  
+  function nextStage()
   {
     
-    //When this is our first call, we're setting up our options.
-    if(!Story.initialized)
-      initialize(arguments[0]);
+    //TODO https://github.com/Beanow/jQuery-storytime/issues/1
+    $(Story.container).removeClass('stage-'+Story.stage);
+    Story.stage++;
+    $(Story.container).addClass('stage-'+Story.stage);
     
-    //Otherwise, this is a command. Switch based on that.
-    else switch(arguments[0])
-    {
-      
-      //Command toChapter
-      case 'toChapter': toChapter(arguments[1]); break;
-      
-      //Command nextStep
-      case 'nextStep': nextStep(); break;
-      
-      //Command prevStep
-      case 'prevStep': prevStep(); break;
-      
-      //Command setOptions
-      case 'setOptions': $.extend(Story.options, arguments[1]); break;
-      
-      default: debug('Unknown storytime command:', arguments[0]); break;
-      
-    }
-    
-  };
+  }
+  
+  
+  /* ---------- Helper functions ---------- */
+  
+  function $chapter(options){
+    return $(Story.container).find('#chapter-'+options.chapter);
+  }
+  
+  function $step(options){
+    return $(Story.container).find('#chapter-'+options.chapter+' .step-'+options.step);
+  }
   
   //Log messages for debugging your stories.
   function debug()
@@ -304,8 +470,9 @@
     if(!Story.options.debugging)
       return;
     
-    if(console && console.log)
-      console.log.apply(this, arguments);
+    if(console && console.log){
+      console.log('Debug log', arguments);
+    }
     
     else
       alert(arguments.join('\r\n\t'));
