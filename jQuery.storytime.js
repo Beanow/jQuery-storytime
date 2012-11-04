@@ -3,6 +3,7 @@
  * Please note only one instance can be used and it assumes it's free to use the whole body as it's playground.
  * For more information view the wiki on the github repository.
  *
+ * @version 1.1-prerelease
  * @author Beanow
  * @licence MIT
  * @website https://github.com/Beanow/jQuery-storytime
@@ -12,15 +13,6 @@
   
   
   /* ---------- Private attributes ---------- */
-  
-  var Resource = {
-    image: {},
-    audio: {},
-    video: {},
-    totalCount: 0,
-    finishedLoading: 0
-  };
-  
   var Story = {
     chapter: 0,
     step: 0,
@@ -30,15 +22,15 @@
     initialized: false,
     nextStep: false,
     prevStep: false,
-    latestMousehide: null
+    latestMouseHide: null,
+    latestMousePos: null
   };
   
   
   /* ---------- Initialization ---------- */
   
   //The main command interface.
-  $.storytime = function()
-  {
+  $.storytime = function(){
     
     //When this is our first call, we're setting up our options.
     if(!Story.initialized)
@@ -75,16 +67,14 @@
       
       //Default options.
       debugging: false,
-      effectSpeed: 200
+      effectSpeed: 200,
+      hideCursor: false
       
     },options);
     
     //Set the container.
     //TODO: https://github.com/Beanow/jQuery-storytime/issues/9
     Story.container = $('body')[0];
-    
-    //Preload things.
-    preloadResources(Story.options.resources);
     
     //Bind events.
     $(Story.container)
@@ -116,25 +106,40 @@
       //Mouse moving
       .on('mousemove', function(e){
         
-        $(Story.container).css('cursor', 'auto');
+        //If we set no to hide the cursor, skip this.
+        if(!Story.options.hideCursor) return;
+
+        //Ignore the event if the mouse did not actually move.
+        //WebKit workaround. https://code.google.com/p/chromium/issues/detail?id=103041
+        if(
+          Story.latestMousePos &&
+          Story.latestMousePos.x == e.pageX &&
+          Story.latestMousePos.y == e.pageY
+        ) return;
+
+        $(Story.container).removeClass('no-cur');
         
         if(Story.latestMouseHide)
           clearTimeout(Story.latestMouseHide);
         
         Story.latestMouseHide = setTimeout(function(){
-          $(Story.container).css('cursor', 'none');
-        }, 1500);
-        
+          $(Story.container).addClass('no-cur');
+        }, Story.options.hideCursor);
+
+        //Store latest position, to ignore the mousemove event from cursor changes.
+        //WebKit workaround. https://code.google.com/p/chromium/issues/detail?id=103041
+        Story.latestMousePos = {
+          x: e.pageX,
+          y: e.pageY
+        };
+
       })
       
     ;
-    
-  }
-  
-  function afterPreloading(){
-    
-    //Start the mouse hiding call right away.
-    $(Story.container).trigger('mousemove');
+
+    //Start the mouse hiding call right away if we want cursor hiding.
+    if(Story.options.hideCursor)
+      $(Story.container).trigger('mousemove');
     
     //Mark the story as initialized.
     Story.initialized = true;
@@ -148,134 +153,6 @@
       step: 1
     };
     nextStep();
-    
-  }
-  
-  
-  /* ---------- Resource handling ---------- */
-  
-  function preloadResources(resources){
-    
-    //When nothing is supplied, no loading is needed.
-    if(!resources) return;
-    
-    //Let the world know we are loading things.
-    $(Story.container).addClass('st-loading');
-    
-    //Images.
-    if(resources.image)
-      for(var key in resources.image)
-        preloadImageResource(key, resources.image[key]);
-    
-    //Audio.
-    if(resources.audio)
-      for(var key in resources.audio)
-        preloadAudioResource(key, resources.audio[key]);
-    
-    //Video.
-    if(resources.video)
-      for(var key in resources.video)
-        preloadVideoResource(key, resources.video[key]);
-    
-  }
-  
-  function preloadProgressTick(){
-    Resource.finishedLoading++;
-    $(Story.container).find('.st-loading-progress').stop().animate({width:Math.round(Resource.finishedLoading / Resource.totalCount * 100)+'%'}, 150);
-    if(Resource.finishedLoading == Resource.totalCount){
-      setTimeout(function(arguments){
-        $(Story.container).removeClass('st-loading');
-        afterPreloading();
-      }, 150);
-    }
-  }
-  
-  function preloadImageResource(key, url)
-  {
-    
-    //Store information about this resource.
-    var meta = Resource.image[key] = {
-      url: url,
-      ready: false
-    };
-    
-    //Count this resource.
-    Resource.totalCount++;
-    
-    //Create preloader.
-    window.Image ? meta.preloader = new Image()
-                 : meta.preloader = document.createElement('image');
-    meta.preloader.onload = function(){
-      meta.ready = true;
-      preloadProgressTick();
-      delete meta.preloader;
-      debug('Finished preloading image.', meta);
-    };
-    
-    //Start loading.
-    meta.preloader.src = url;
-    
-    debug('Preloading image.', meta);
-    
-  }
-  
-  function preloadAudioResource(key, url)
-  {
-    
-    //Store information about this resource.
-    var meta = Resource.audio[key] = {
-      url: url,
-      ready: false
-    };
-    
-    //Count this resource.
-    Resource.totalCount++;
-    
-    //Create controller.
-    window.Audio ? meta.controller = new Audio()
-                 : meta.controller = document.createElement('audio');
-    meta.controller.addEventListener('canplaythrough', function (){
-      meta.ready = true;
-      preloadProgressTick();
-      debug('Finished preloading audio.', meta);
-    }, true);
-    meta.controller.preload = 'auto';
-    
-    //Start loading.
-    meta.controller.src = url;
-    meta.controller.load();
-    
-    debug('Preloading audio.', meta);
-    
-  }
-  
-  function preloadVideoResource(key, url)
-  {
-    
-    //Store information about this resource.
-    var meta = Resource.video[key] = {
-      url: url,
-      ready: false
-    };
-    
-    //Count this resource.
-    Resource.totalCount++;
-    
-    //Create controller.
-    window.Video ? meta.controller = new Video()
-                 : meta.controller = document.createElement('video');
-    meta.controller.addEventListener('canplaythrough', function (){
-      meta.ready = true;
-      preloadProgressTick();
-      debug('Finished preloading video.', meta);
-    }, true);
-    meta.controller.preload = 'auto';
-    
-    //Start loading.
-    meta.controller.src = url;
-    meta.controller.load();
-    
-    debug('Preloading video.', meta);
     
   }
   
