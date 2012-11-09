@@ -3,7 +3,7 @@
  * Please note only one instance can be used and it assumes it's free to use the whole body as it's playground.
  * For more information view the wiki on the github repository.
  *
- * @version 1.1-prerelease
+ * @version 1.1-stable
  * @author Beanow
  * @licence MIT
  * @website https://github.com/Beanow/jQuery-storytime

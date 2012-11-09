@@ -14,9 +14,8 @@ Basic setup
       
       //Initialize our story.
       $.storytime({
-        debugging: true,
         effect: 'fade',
-        effectSpeed: 1000,
+        effectSpeed: 600,
         hideCursor: 1500
       });
       
