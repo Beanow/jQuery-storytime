@@ -16,7 +16,7 @@
   var Story = {
     chapter: 0,
     step: 0,
-    stage: 0,
+    stage: null,
     options: {},
     container: null,
     initialized: false,
@@ -49,6 +49,9 @@
       //Command prevStep
       case 'prevStep': prevStep(); break;
       
+      //Command setStage
+      case 'setStage': setStage(arguments[1]); break;
+
       //Command setOptions
       case 'setOptions': $.extend(Story.options, arguments[1]); break;
       
@@ -68,9 +71,10 @@
       //Default options.
       debugging: false,
       effectSpeed: 200,
-      hideCursor: false
+      hideCursor: false,
+      events: {}
       
-    },options);
+    }, options);
     
     //Set the container.
     //TODO: https://github.com/Beanow/jQuery-storytime/issues/9
@@ -96,11 +100,24 @@
         e.preventDefault();
         nextStep();
       })
+
+      //Key navigation
       .on('keypress', function(e){
-        if(e.keyCode == 13){
+
+        //Next (Enter, right arrow)
+        if(e.keyCode == 13 || e.keyCode == 39){
           e.preventDefault();
           nextStep();
+          return;
         }
+
+        //Prev (Left arrow)
+        if(e.keyCode == 37){
+          e.preventDefault();
+          prevStep();
+          return;
+        }
+
       })
       
       //Mouse moving
@@ -144,9 +161,6 @@
     //Mark the story as initialized.
     Story.initialized = true;
     
-    //Go to the first stage.
-    nextStage();
-    
     //Go to the first step of the first chapter.
     Story.nextStep = {
       chapter: 1,
@@ -173,6 +187,19 @@
       
       default: debug('Unknown effect applied:', Story.options.effect); break;
       
+    }
+    
+  }
+  
+  
+  /* ---------- Events ---------- */
+  
+  function trigger(eventName, options){
+    
+    var cb = Story.options.events[eventName];
+    if(cb){
+      cb.call(cb, options.chapter, options.step, Story.options.effectSpeed);
+      debug('Triggering event', eventName);
     }
     
   }
@@ -274,12 +301,24 @@
     //If we're switching chapters.
     if(chapterTransitioning){
       effect($chapter(Story), 'out');
+      trigger('leave chapter', Story);
+      trigger('leave chapter '+Story.chapter, Story);
       effect($chapter(to), 'in');
+      trigger('enter chapter', to);
+      trigger('enter chapter '+to.chapter, to);
     }
     
     //Switch steps with extra parameter.
     effect($step(Story), 'out', chapterTransitioning);
+    trigger('leave chapter step', Story);
+    trigger('leave chapter '+Story.chapter+' step', Story);
+    trigger('leave chapter step '+Story.step, Story);
+    trigger('leave chapter '+Story.chapter+' step '+Story.step, Story);
     effect($step(to), 'in', chapterTransitioning);
+    trigger('enter chapter step', to);
+    trigger('enter chapter '+to.chapter+' step', to);
+    trigger('enter chapter step '+to.step, to);
+    trigger('enter chapter '+to.chapter+' step '+to.step, to);
     
     //Update story data.
     $.extend(Story, to);
@@ -319,13 +358,16 @@
   
   /* ---------- Staging ---------- */
   
-  function nextStage()
+  function setStage(name)
   {
     
-    //TODO https://github.com/Beanow/jQuery-storytime/issues/1
-    $(Story.container).removeClass('stage-'+Story.stage);
-    Story.stage++;
-    $(Story.container).addClass('stage-'+Story.stage);
+    if(Story.stage)
+      effect($stage(Story.stage), 'out');
+
+    Story.stage = name;
+
+    if(Story.stage)
+      effect($stage(Story.stage), 'in');
     
   }
   
@@ -338,6 +380,10 @@
   
   function $step(options){
     return $(Story.container).find('#chapter-'+options.chapter+' .step-'+options.step);
+  }
+
+  function $stage(name){
+    return $(Story.container).find('#stage-'+name);
   }
   
   //Log messages for debugging your stories.

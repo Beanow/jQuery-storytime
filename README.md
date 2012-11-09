@@ -16,7 +16,8 @@ Basic setup
       $.storytime({
         debugging: true,
         effect: 'fade',
-        effectSpeed: 1000
+        effectSpeed: 1000,
+        hideCursor: 1500
       });
       
     });
